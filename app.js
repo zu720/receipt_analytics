@@ -872,15 +872,8 @@ function renderMemberRanking() {
       sel?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
-}
 
 
-      refreshFilterOptionsForMember(memberId);
-      apply();
-      sel?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-}
 async function loadFile(file) {
   try {
     setStatus(`読込中... ${file.name}`);
@@ -977,6 +970,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

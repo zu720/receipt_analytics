@@ -582,34 +582,13 @@ document.addEventListener("keydown", (e) => {
 // 0) 会員探索（ランキング）
 //   - 一致した明細だけで集計（同時購買は入れない）
 // ============================================================
-function getRankQuery() {
-  return {
-    janQ: ($("#rankJan")?.value || "").trim(),
-    itemQ: ($("#rankItem")?.value || "").trim(),
-    metric: $("#rankMetric")?.value || "sales_desc",
-    limit: Number($("#rankLimit")?.value || 100),
-  };
-}
-
 function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   if (!RAW.length) return [];
 
   const hasCond = !!(janQ || itemQ);
 
   const match = (r) => {
-    if (janQ && !r.__jan.includes(janQ)) return false;
-    if (itemQ && !r.__item.includes(itemQ)) return false;
-    return true;
-  };
-
-  // 条件が空なら「全明細」になって会員数が多すぎるので、空はランキング停止（仕様）
-  function computeMemberRanking({ janQ, itemQ, metric, limit }) {
-  if (!RAW.length) return [];
-
-  const hasCond = !!(janQ || itemQ);
-
-  const match = (r) => {
-    // 条件があるときだけ商品一致で絞る
+    // 条件がないときは全件対象（＝全体ランキング）
     if (!hasCond) return true;
     if (janQ && !r.__jan.includes(janQ)) return false;
     if (itemQ && !r.__item.includes(itemQ)) return false;
@@ -671,65 +650,8 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   return arr;
 }
 
-
-  const m = new Map();
-  for (const r of RAW) {
-    if (!match(r)) continue;
-
-    const id = r.__member;
-    if (!id) continue;
-
-    if (!m.has(id)) {
-      m.set(id, {
-        member: id,
-        sales: 0,
-        qty: 0,
-        rcptSet: new Set(),
-        storeSet: new Set(),
-        lastDt: "",
-      });
-    }
-    const o = m.get(id);
-    o.sales += r.__amt;
-    o.qty += r.__qty;
-    o.rcptSet.add(r.__receipt);
-    o.storeSet.add(r.__store);
-    if (!o.lastDt || String(r.__dtKey).localeCompare(o.lastDt) > 0) o.lastDt = r.__dtKey;
-  }
-
-  let arr = Array.from(m.values()).map(o => ({
-    member: o.member,
-    sales: o.sales,
-    qty: o.qty,
-    rcpt: o.rcptSet.size,
-    stores: o.storeSet.size,
-    lastDt: o.lastDt || "",
-  }));
-
-  // sort
-  const cmpStrDesc = (a, b) => String(b).localeCompare(String(a));
-  switch (metric) {
-    case "qty_desc":
-      arr.sort((a, b) => (b.qty - a.qty) || (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt));
-      break;
-    case "rcpt_desc":
-      arr.sort((a, b) => (b.rcpt - a.rcpt) || (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt));
-      break;
-    case "last_desc":
-      arr.sort((a, b) => cmpStrDesc(a.lastDt, b.lastDt) || (b.sales - a.sales) || (b.rcpt - a.rcpt));
-      break;
-    case "sales_desc":
-    default:
-      arr.sort((a, b) => (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt) || (b.rcpt - a.rcpt));
-      break;
-  }
-
-  if (Number.isFinite(limit) && limit > 0) arr = arr.slice(0, limit);
-  return arr;
-}
-
 function renderMemberRanking() {
-  const tbody = $("#rankTable");
+  const tbody = $("#rankTable");   // tbody要素（id=rankTable）
   const info = $("#rankInfo");
   if (!tbody) return;
 
@@ -740,23 +662,8 @@ function renderMemberRanking() {
   }
 
   const q = getRankQuery();
-  const arr = computeMemberRanking(q);
-
- function renderMemberRanking() {
-  const tbody = $("#rankTable");
-  const info = $("#rankInfo");
-  if (!tbody) return;
-
-  if (!RAW.length) {
-    if (info) info.textContent = "CSV読込後に有効";
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">CSV未読込</td></tr>`;
-    return;
-  }
-
-  const q = getRankQuery();
-
-  // ★ここ：空条件のときの案内を変える（returnしない）
   const isAll = (!q.janQ && !q.itemQ);
+
   if (info) {
     info.textContent = isAll
       ? `全体ランキング表示中（会員クリックで選択→反映）`
@@ -799,53 +706,6 @@ function renderMemberRanking() {
 
       refreshFilterOptionsForMember(memberId);
       apply();
-      sel?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-}
-
-
-  if (!arr.length) {
-    if (info) info.textContent = "一致する会員が見つかりませんでした";
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">該当なし</td></tr>`;
-    return;
-  }
-
-  if (info) info.textContent = `該当会員=${fmtInt(arr.length)}（クリックで会員選択→反映）`;
-
-  tbody.innerHTML = arr.map((r, i) => `
-    <tr class="rankClickable" data-member="${escapeHtml(r.member)}">
-      <td class="mono">${i + 1}</td>
-      <td class="mono">${escapeHtml(r.member)}</td>
-      <td class="right mono">${fmtYen(r.sales)}</td>
-      <td class="right mono">${fmtInt(r.qty)}</td>
-      <td class="right mono">${fmtInt(r.rcpt)}</td>
-      <td class="mono">${escapeHtml(r.lastDt)}</td>
-      <td class="right mono">${fmtInt(r.stores)}</td>
-    </tr>
-  `).join("");
-
-  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
-    tr.addEventListener("click", () => {
-      const memberId = tr.dataset.member || "";
-      if (!memberId) return;
-
-      // 会員をセット
-      const sel = $("#member");
-      if (sel) sel.value = memberId;
-
-      // 探索条件 → 下の絞り込みにもコピー（違和感を減らす）
-      const rJan = ($("#rankJan")?.value || "").trim();
-      const rItem = ($("#rankItem")?.value || "").trim();
-      const janEl = $("#janFilter");
-      const itemEl = $("#itemFilter");
-      if (janEl) janEl.value = rJan;
-      if (itemEl) itemEl.value = rItem;
-
-      refreshFilterOptionsForMember(memberId);
-      apply();
-
-      // 目線誘導（会員選択ブロックまで少しスクロール）
       sel?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
@@ -937,4 +797,5 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 

@@ -603,7 +603,74 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   };
 
   // 条件が空なら「全明細」になって会員数が多すぎるので、空はランキング停止（仕様）
-  if (!hasCond) return [];
+  function computeMemberRanking({ janQ, itemQ, metric, limit }) {
+  if (!RAW.length) return [];
+
+  const hasCond = !!(janQ || itemQ);
+
+  const match = (r) => {
+    // 条件があるときだけ商品一致で絞る
+    if (!hasCond) return true;
+    if (janQ && !r.__jan.includes(janQ)) return false;
+    if (itemQ && !r.__item.includes(itemQ)) return false;
+    return true;
+  };
+
+  const m = new Map();
+  for (const r of RAW) {
+    if (!match(r)) continue;
+
+    const id = r.__member;
+    if (!id) continue;
+
+    if (!m.has(id)) {
+      m.set(id, {
+        member: id,
+        sales: 0,
+        qty: 0,
+        rcptSet: new Set(),
+        storeSet: new Set(),
+        lastDt: "",
+      });
+    }
+    const o = m.get(id);
+    o.sales += r.__amt;
+    o.qty += r.__qty;
+    o.rcptSet.add(r.__receipt);
+    o.storeSet.add(r.__store);
+    if (!o.lastDt || String(r.__dtKey).localeCompare(o.lastDt) > 0) o.lastDt = r.__dtKey;
+  }
+
+  let arr = Array.from(m.values()).map(o => ({
+    member: o.member,
+    sales: o.sales,
+    qty: o.qty,
+    rcpt: o.rcptSet.size,
+    stores: o.storeSet.size,
+    lastDt: o.lastDt || "",
+  }));
+
+  const cmpStrDesc = (a, b) => String(b).localeCompare(String(a));
+  switch (metric) {
+    case "qty_desc":
+      arr.sort((a, b) => (b.qty - a.qty) || (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt));
+      break;
+    case "rcpt_desc":
+      arr.sort((a, b) => (b.rcpt - a.rcpt) || (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt));
+      break;
+    case "last_desc":
+      arr.sort((a, b) => cmpStrDesc(a.lastDt, b.lastDt) || (b.sales - a.sales) || (b.rcpt - a.rcpt));
+      break;
+    case "sales_desc":
+    default:
+      arr.sort((a, b) => (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt) || (b.rcpt - a.rcpt));
+      break;
+  }
+
+  if (Number.isFinite(limit) && limit > 0) arr = arr.slice(0, limit);
+  return arr;
+}
+
 
   const m = new Map();
   for (const r of RAW) {
@@ -675,11 +742,68 @@ function renderMemberRanking() {
   const q = getRankQuery();
   const arr = computeMemberRanking(q);
 
-  if (!q.janQ && !q.itemQ) {
-    if (info) info.textContent = "JAN or 商品名を入れるとランキングが出ます（空だと重すぎるので止めてます）";
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">JAN または 商品名で条件を入れてください</td></tr>`;
+ function renderMemberRanking() {
+  const tbody = $("#rankTable");
+  const info = $("#rankInfo");
+  if (!tbody) return;
+
+  if (!RAW.length) {
+    if (info) info.textContent = "CSV読込後に有効";
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">CSV未読込</td></tr>`;
     return;
   }
+
+  const q = getRankQuery();
+
+  // ★ここ：空条件のときの案内を変える（returnしない）
+  const isAll = (!q.janQ && !q.itemQ);
+  if (info) {
+    info.textContent = isAll
+      ? `全体ランキング表示中（会員クリックで選択→反映）`
+      : `条件あり：該当会員を表示中（クリックで会員選択→反映）`;
+  }
+
+  const arr = computeMemberRanking(q);
+
+  if (!arr.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">該当なし</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = arr.map((r, i) => `
+    <tr class="rankClickable" data-member="${escapeHtml(r.member)}">
+      <td class="mono">${i + 1}</td>
+      <td class="mono">${escapeHtml(r.member)}</td>
+      <td class="right mono">${fmtYen(r.sales)}</td>
+      <td class="right mono">${fmtInt(r.qty)}</td>
+      <td class="right mono">${fmtInt(r.rcpt)}</td>
+      <td class="mono">${escapeHtml(r.lastDt)}</td>
+      <td class="right mono">${fmtInt(r.stores)}</td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
+    tr.addEventListener("click", () => {
+      const memberId = tr.dataset.member || "";
+      if (!memberId) return;
+
+      const sel = $("#member");
+      if (sel) sel.value = memberId;
+
+      const rJan = ($("#rankJan")?.value || "").trim();
+      const rItem = ($("#rankItem")?.value || "").trim();
+      const janEl = $("#janFilter");
+      const itemEl = $("#itemFilter");
+      if (janEl) janEl.value = rJan;
+      if (itemEl) itemEl.value = rItem;
+
+      refreshFilterOptionsForMember(memberId);
+      apply();
+      sel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
 
   if (!arr.length) {
     if (info) info.textContent = "一致する会員が見つかりませんでした";
@@ -813,3 +937,4 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+

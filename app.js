@@ -214,11 +214,9 @@ function loadFromText(text) {
   renderRequiredColumnsNote();
 
 
-  // ★「直後」＝この位置（renderRequiredColumnsNote() の次の行）
-  showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
-  showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
-  showBlockIfExists("#makerFilter",  !!COL.maker  && hasCol(COL.maker)); // 任意
-  showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS));
+
+  applyProfileUI();
+
 
   
   const required = [COL.member, COL.date, COL.time, COL.storeName, COL.item, COL.amount].filter(Boolean);
@@ -287,6 +285,21 @@ function showBlockIfExists(selectId, show) {
   if (wrap) wrap.style.display = show ? "" : "none";
 }
 
+function applyProfileUI() {
+  // 表示/非表示（ヘッダに実在する列だけ表示）
+  showBlockIfExists("#makerFilter",  !!COL.maker  && hasCol(COL.maker));
+  showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
+  showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
+  showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS));
+
+  // 非表示のフィルタは値もクリア（事故防止）
+  if (!(!!COL.maker  && hasCol(COL.maker)))  $("#makerFilter") && ($("#makerFilter").value = "");
+  if (!(!!COL.line   && hasCol(COL.line)))   $("#lineFilter") && ($("#lineFilter").value = "");
+  if (!(!!COL.corner && hasCol(COL.corner))) $("#cornerFilter") && ($("#cornerFilter").value = "");
+  if (!(!!COL.catS   && hasCol(COL.catS)))   $("#catSFilter") && ($("#catSFilter").value = "");
+}
+
+
 
 function fillSelect(id, values) {
   const sel = $(id);
@@ -307,18 +320,42 @@ function refreshFilterOptionsForMember(memberId) {
     fillSelect("#catLFilter", []);
     fillSelect("#catMFilter", []);
     fillSelect("#catSFilter", []);
+    applyProfileUI(); // ここでも整合
     return;
   }
 
   const lines = RAW.filter(r => r.__member === memberId);
 
-  fillSelect("#storeFilter",  uniqSorted(lines.map(x => x.__store)));
-  fillSelect("#makerFilter",  uniqSorted(lines.map(x => x.__maker)));
-  fillSelect("#lineFilter",   uniqSorted(lines.map(x => x.__line)));
-  fillSelect("#cornerFilter", uniqSorted(lines.map(x => x.__corner)));
-  fillSelect("#catLFilter",   uniqSorted(lines.map(x => x.__catL)));
-  fillSelect("#catMFilter",   uniqSorted(lines.map(x => x.__catM)));
-  fillSelect("#catSFilter",   uniqSorted(lines.map(x => x.__catS)));
+  fillSelect("#storeFilter", uniqSorted(lines.map(x => x.__store)));
+
+  if (COL.maker && hasCol(COL.maker)) {
+    fillSelect("#makerFilter", uniqSorted(lines.map(x => x.__maker)));
+  } else {
+    fillSelect("#makerFilter", []);
+  }
+
+  if (COL.line && hasCol(COL.line)) {
+    fillSelect("#lineFilter", uniqSorted(lines.map(x => x.__line)));
+  } else {
+    fillSelect("#lineFilter", []);
+  }
+
+  if (COL.corner && hasCol(COL.corner)) {
+    fillSelect("#cornerFilter", uniqSorted(lines.map(x => x.__corner)));
+  } else {
+    fillSelect("#cornerFilter", []);
+  }
+
+  fillSelect("#catLFilter", uniqSorted(lines.map(x => x.__catL)));
+  fillSelect("#catMFilter", uniqSorted(lines.map(x => x.__catM)));
+
+  if (COL.catS && hasCol(COL.catS)) {
+    fillSelect("#catSFilter", uniqSorted(lines.map(x => x.__catS)));
+  } else {
+    fillSelect("#catSFilter", []);
+  }
+
+  applyProfileUI();
 }
 
 // ---------- receipts builder ----------
@@ -780,6 +817,7 @@ async function loadFile(file) {
 function wire() {
   renderRequiredColumnsNote();
   setChainBadge();
+  applyProfileUI();
 
   $("#apply")?.addEventListener("click", apply);
   $("#clear")?.addEventListener("click", clearAll);
@@ -850,6 +888,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

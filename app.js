@@ -54,6 +54,47 @@ function setChainBadge() {
   if (!el) return;
   el.textContent = `CHAIN: ${COL?.name || "-"}`;
 }
+function setLabelText(controlSelector, text) {
+  const el = $(controlSelector);
+  if (!el) return;
+  const wrap = el.closest("div");
+  const lab = wrap ? wrap.querySelector("label") : null;
+  if (lab) lab.textContent = text;
+}
+
+function applyProfileUILabels() {
+  // 会員
+  setLabelText("#member", `会員（${COL.name}）`);
+
+  // 分類系：表示名をチェーンに合わせる
+  setLabelText("#catLFilter", COL.key === "SUMMIT" ? "部門" : "大分類");
+  setLabelText("#catMFilter", COL.key === "SUMMIT" ? "カテゴリ" : "中分類");
+  setLabelText("#catSFilter", COL.key === "SUMMIT" ? "（なし）" : "小分類"); // どうせSUMMITは非表示
+
+  // サミット特有
+  setLabelText("#lineFilter", "ライン");
+  setLabelText("#cornerFilter", "コーナー");
+
+  // トモズ特有（必要なら）
+  if (COL.key === "TOMODS") setLabelText("#makerFilter", "メーカー/取引先");
+}
+function applyProfileUI() {
+  // 既存の表示/非表示制御...
+  showBlockIfExists("#makerFilter",  !!COL.maker  && hasCol(COL.maker));
+  showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
+  showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
+  showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS));
+
+  // 既存の値クリア...
+  if (!(!!COL.maker  && hasCol(COL.maker)))  $("#makerFilter") && ($("#makerFilter").value = "");
+  if (!(!!COL.line   && hasCol(COL.line)))   $("#lineFilter") && ($("#lineFilter").value = "");
+  if (!(!!COL.corner && hasCol(COL.corner))) $("#cornerFilter") && ($("#cornerFilter").value = "");
+  if (!(!!COL.catS   && hasCol(COL.catS)))   $("#catSFilter") && ($("#catSFilter").value = "");
+
+  // ★追加：ラベルの文言もチェーンで切替
+  applyProfileUILabels();
+}
+
 
 // ---------- profiles (列名辞書) ----------
 const PROFILES = {
@@ -280,7 +321,7 @@ function refreshMemberSelect() {
 
   const current = sel.value;
   sel.innerHTML = `<option value="">（選択）</option>`
-    + list.slice(0, 5000).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+    + list.slice(0, 50).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
 
   if (current && list.includes(current)) sel.value = current;
 }
@@ -895,6 +936,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

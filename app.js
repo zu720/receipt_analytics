@@ -121,23 +121,28 @@ function renderRequiredColumnsNote() {
   const el = $("#reqCols");
   if (!el) return;
 
-  const required = [COL.member, COL.date, COL.time, COL.storeName, COL.item, COL.amount].filter(Boolean);
-  const optional = [COL.qty, COL.maker, COL.catL, COL.catM, COL.catS, COL.jan].filter(Boolean);
+  const renderOne = (P) => {
+    const required = [P.member, P.date, P.time, P.storeName, P.item, P.amount].filter(Boolean);
+    const optional = [P.qty, P.maker, P.catL, P.catM, P.catS, P.jan].filter(Boolean);
+    const chainName = P?.name ? `【${P.name}】` : "";
+    const noticeLines = (P.notice || []).map(x => `・${escapeHtml(x)}`).join("<br>");
 
-  const chainName = COL?.name ? `【${COL.name}】` : "";
-  const noticeLines = (COL.notice || []).map(x => `・${escapeHtml(x)}`).join("<br>");
+    return `
+      <div class="reqBlock">
+        <div class="reqTitle">${chainName}</div>
+        <div>${chainName} 必須: ${required.map(c => `<span>${escapeHtml(c)}</span>`).join(" / ")}</div>
+        <div>${chainName} 任意: ${optional.map(c => `<span>${escapeHtml(c)}</span>`).join(" / ")}</div>
+        <div class="muted">※ レシートID列は不要：会員×店舗×買上日×買上時間で擬似生成</div>
+        ${noticeLines ? `<div class="muted">${noticeLines}</div>` : ""}
+      </div>
+    `;
+  };
 
-  el.innerHTML =
-    `${chainName} 必須: ${required.map(c => `<span>${escapeHtml(c)}</span>`).join(" / ")}`
-    + `<br>${chainName} 任意: ${optional.map(c => `<span>${escapeHtml(c)}</span>`).join(" / ")}`
-    + `<br><span class="muted">※ レシートID列は不要：会員×店舗×買上日×買上時間で擬似生成</span>`
-    + (noticeLines ? `<br><span class="muted">${noticeLines}</span>` : "");
-}
+  // ★両方表示 + いま判定されたチェーンを先頭に
+  const first = COL?.key === "SUMMIT" ? PROFILES.SUMMIT : PROFILES.TOMODS;
+  const second = COL?.key === "SUMMIT" ? PROFILES.TOMODS : PROFILES.SUMMIT;
 
-function setChainBadge() {
-  const badge = $("#chainBadge");
-  if (!badge) return;
-  badge.textContent = `CHAIN: ${COL?.name ?? "-"}`;
+  el.innerHTML = renderOne(first) + `<hr class="reqHr">` + renderOne(second);
 }
 
 // ---------- header presence helpers ----------
@@ -810,6 +815,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

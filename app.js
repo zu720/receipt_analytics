@@ -811,8 +811,8 @@ function renderMemberRanking() {
 
   if (info) {
     info.textContent = isAll
-      ? `全体ランキング表示中（会員クリックで選択→反映）`
-      : `条件あり：該当会員を表示中（クリックで会員選択→反映）`;
+      ? `全体ランキング表示中（会員クリックで選択→反映 / 会員IDセルクリックでコピー）`
+      : `条件あり：該当会員を表示中（会員クリックで選択→反映 / 会員IDセルクリックでコピー）`;
   }
 
   const arr = computeMemberRanking(q);
@@ -833,30 +833,32 @@ function renderMemberRanking() {
       <td class="right mono">${fmtInt(r.stores)}</td>
     </tr>
   `).join("");
-tbody.querySelectorAll("tr[data-member]").forEach(tr => {
-  tr.addEventListener("click", async (e) => {
-    const memberId = tr.dataset.member || "";
-    if (!memberId) return;
 
-    const clickedMemberCell = e.target?.closest?.(".memberCell");
+  // イベント付与（毎回描画し直すので毎回付ける）
+  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
+    tr.addEventListener("click", async (e) => {
+      const memberId = tr.dataset.member || "";
+      if (!memberId) return;
 
-    // ★ 会員IDセルをクリックしたとき：コピー + 検索窓へ貼り付け（applyしない）
-    if (clickedMemberCell) {
-      const ok = await copyToClipboardSafe(memberId);
+      const clickedMemberCell = e.target?.closest?.(".memberCell");
 
-      const ms = $("#memberSearch");
-      if (ms) {
-        ms.value = memberId;
-        ms.dispatchEvent(new Event("input", { bubbles: true })); // 候補絞り込み即反映
-        ms.focus();
-        ms.select();
+      // ① 会員IDセル：コピー + 検索窓へ貼り付け（applyしない）
+      if (clickedMemberCell) {
+        const ok = await copyToClipboardSafe(memberId);
+
+        const ms = $("#memberSearch");
+        if (ms) {
+          ms.value = memberId;
+          ms.dispatchEvent(new Event("input", { bubbles: true })); // 候補絞り込み即反映
+          ms.focus();
+          ms.select();
+        }
+
+        setStatus(ok ? `会員IDコピー: ${memberId}` : `コピー失敗（手動でOK）: ${memberId}`);
+        return;
       }
 
-      setStatus(ok ? `会員IDコピー: ${memberId}` : `コピー失敗（手動でOK）: ${memberId}`);
-      return;
-    }
-
-      // ② それ以外（行クリック）：従来どおり「選択→反映」
+      // ② 行クリック：従来どおり「選択→反映」
       const sel = $("#member");
       if (sel) sel.value = memberId;
 
@@ -870,7 +872,8 @@ tbody.querySelectorAll("tr[data-member]").forEach(tr => {
       sel?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
-  // ★ここまで
+}
+
  
       // 探索条件 → 下の絞り込みにもコピー
       const rJan = ($("#rankJan")?.value || "").trim();
@@ -980,6 +983,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

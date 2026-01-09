@@ -860,16 +860,6 @@ tbody.querySelectorAll("tr[data-member]").forEach(tr => {
     const sel = $("#member");
     if (sel) sel.value = memberId;
 
-    const rJan = ($("#rankJan")?.value || "").trim();
-    const rItem = ($("#rankItem")?.value || "").trim();
-    if ($("#janFilter")) $("#janFilter").value = rJan;
-    if ($("#itemFilter")) $("#itemFilter").value = rItem;
-
-    refreshFilterOptionsForMember(memberId);
-    apply();
-    sel?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-});
 
  
       // 探索条件 → 下の絞り込みにもコピー
@@ -980,6 +970,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

@@ -871,7 +871,7 @@ function renderMemberRanking() {
       apply();
       sel?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  });
+
 
 
 async function loadFile(file) {
@@ -970,3 +970,4 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+

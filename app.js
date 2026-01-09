@@ -11,6 +11,12 @@
 const $ = (s) => document.querySelector(s);
 
 // ---------- util ----------
+function setChainBadge() {
+  const el = $("#chainBadge");
+  if (!el) return;
+  el.textContent = `CHAIN: ${COL?.name || "-"}`;
+}
+
 function setStatus(msg) { const el = $("#status"); if (el) el.textContent = msg; }
 function fmtInt(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
 function fmtYen(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
@@ -888,6 +894,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

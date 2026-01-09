@@ -333,21 +333,6 @@ function showBlockIfExists(selectId, show) {
   if (wrap) wrap.style.display = show ? "" : "none";
 }
 
-function applyProfileUI() {
-  // 表示/非表示（ヘッダに実在する列だけ表示）
-  showBlockIfExists("#makerFilter",  !!COL.maker  && hasCol(COL.maker));
-  showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
-  showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
-  showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS));
-
-  // 非表示のフィルタは値もクリア（事故防止）
-  if (!(!!COL.maker  && hasCol(COL.maker)))  $("#makerFilter") && ($("#makerFilter").value = "");
-  if (!(!!COL.line   && hasCol(COL.line)))   $("#lineFilter") && ($("#lineFilter").value = "");
-  if (!(!!COL.corner && hasCol(COL.corner))) $("#cornerFilter") && ($("#cornerFilter").value = "");
-  if (!(!!COL.catS   && hasCol(COL.catS)))   $("#catSFilter") && ($("#catSFilter").value = "");
-}
-
-
 
 function fillSelect(id, values) {
   const sel = $(id);
@@ -936,6 +921,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

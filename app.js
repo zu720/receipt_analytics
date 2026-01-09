@@ -856,11 +856,21 @@ tbody.querySelectorAll("tr[data-member]").forEach(tr => {
       return;
     }
 
-    // ★ 行クリック：従来どおり「選択→反映」
-    const sel = $("#member");
-    if (sel) sel.value = memberId;
+      // ② それ以外（行クリック）：従来どおり「選択→反映」
+      const sel = $("#member");
+      if (sel) sel.value = memberId;
 
+      const rJan = ($("#rankJan")?.value || "").trim();
+      const rItem = ($("#rankItem")?.value || "").trim();
+      if ($("#janFilter")) $("#janFilter").value = rJan;
+      if ($("#itemFilter")) $("#itemFilter").value = rItem;
 
+      refreshFilterOptionsForMember(memberId);
+      apply();
+      sel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  // ★ここまで
  
       // 探索条件 → 下の絞り込みにもコピー
       const rJan = ($("#rankJan")?.value || "").trim();
@@ -970,6 +980,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

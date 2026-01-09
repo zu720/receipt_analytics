@@ -81,6 +81,8 @@ const PROFILES = {
     amount: "買上金額（会員)",
     qty: "買上点数（会員)",
     maker: "",
+    corner: "コーナー名",
+　  line: "ライン名",
     catL: "部門名",
     catM: "カテゴリ名",
     catS: "",
@@ -232,6 +234,8 @@ function loadFromText(text) {
       if (!o.__time) throw new Error(`買上時間が解釈できない行があります。列「${COL.time}」の形式を確認してください（例: 13:05 や 130522 など）`);
 
       o.__maker = valOrEmpty(o, COL.maker);
+      o.__corner = valOrEmpty(o, COL.corner);
+      o.__line   = valOrEmpty(o, COL.line); 
       o.__catL = valOrEmpty(o, COL.catL);
       o.__catM = valOrEmpty(o, COL.catM);
       o.__catS = valOrEmpty(o, COL.catS);
@@ -267,6 +271,14 @@ function refreshMemberSelect() {
 
   if (current && list.includes(current)) sel.value = current;
 }
+
+function showBlockIfExists(selectId, show) {
+  const el = $(selectId);
+  if (!el) return;
+  const wrap = el.closest("div");
+  if (wrap) wrap.style.display = show ? "" : "none";
+}
+
 
 function fillSelect(id, values) {
   const sel = $(id);
@@ -505,6 +517,8 @@ function getFilters() {
     dateFilter: $("#dateFilter")?.value || "",
     store: $("#storeFilter")?.value || "",
     maker: $("#makerFilter")?.value || "",
+    line: $("#lineFilter")?.value || "",       // ★追加
+    corner: $("#cornerFilter")?.value || "",   // ★追加
     catL: $("#catLFilter")?.value || "",
     catM: $("#catMFilter")?.value || "",
     catS: $("#catSFilter")?.value || "",
@@ -540,6 +554,8 @@ function clearAll() {
   setVal("#dateFilter", "");
   setVal("#storeFilter", "");
   setVal("#makerFilter", "");
+  setVal("#lineFilter", "");
+  setVal("#cornerFilter", "");
   setVal("#catLFilter", "");
   setVal("#catMFilter", "");
   setVal("#catSFilter", "");
@@ -663,6 +679,12 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   if (Number.isFinite(limit) && limit > 0) arr = arr.slice(0, limit);
   return arr;
 }
+
+// ★チェーン別にUIを出し分け
+showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
+showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
+showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS)); // サミットは空なので消える
+
 
 function renderMemberRanking() {
   const tbody = $("#rankTable");
@@ -815,6 +837,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

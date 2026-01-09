@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>サミトモレシートみえ～る君</title>
+  <title>サミトモレシート見える君</title>
 
   <style>
     :root{
@@ -27,12 +27,14 @@
       border-radius: var(--radius); padding:18px; margin:14px 0;
       box-shadow: var(--shadow);
     }
-    h1{
-      font-size:16px; margin:0 0 6px 0; letter-spacing:.2px;
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    }
-    h2{ font-size:13px; margin:0 0 12px 0; color:var(--muted); font-weight:700; }
+    h1{ font-size:16px; margin:0 0 6px 0; letter-spacing:.2px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    h2{ font-size:13px; margin:0 0 12px 0; color:var(--muted); font-weight:800; }
     .sub{ font-size:12px; color:var(--muted); margin:0 0 10px 0; }
+    .badge{
+      font-size:12px; color:#fff;
+      background: linear-gradient(180deg, rgba(37,99,235,1), rgba(29,78,216,1));
+      border-radius:999px; padding:4px 10px; font-weight:800;
+    }
 
     .row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
     .row4{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; }
@@ -114,13 +116,11 @@
     .listBox{ border:1px solid var(--line); border-radius: var(--radius); background:#fff; overflow:hidden; }
     .listHeader{ padding:12px 14px; border-bottom:1px solid var(--line); background:#fff; position: sticky; top: 0; z-index: 5; }
     .listBody{
-      /* 画面の高さに追従（はみ出さない） */
       max-height: calc(100vh - 420px);
       min-height: 220px;
       overflow:auto;
       padding: 10px;
     }
-
     .rcptBtn{
       width:100%; text-align:left; border:1px solid var(--line);
       background:#fff; border-radius: 14px; padding:10px 12px;
@@ -134,16 +134,7 @@
     .rcptTop{ display:flex; justify-content:space-between; gap:10px; font-weight:800; }
     .rcptMid{ margin-top:4px; color:var(--muted); font-size:12px; }
     .rcptBot{ margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; font-size:12px; }
-
-    .pill{
-      border:1px solid var(--line);
-      border-radius:999px;
-      padding:2px 8px;
-      background:#fff;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-    }
+    .pill{ border:1px solid var(--line); border-radius:999px; padding:2px 8px; background:#fff; }
 
     .receiptBox{ border:1px solid var(--line); border-radius: var(--radius); background:#fff; overflow:hidden; }
     .receiptHeader{
@@ -164,6 +155,10 @@
 
     .bar{ height:10px; border-radius:999px; background: rgba(37,99,235,.12); overflow:hidden; }
     .bar > div{ height:100%; background: rgba(37,99,235,.70); }
+
+    .rankWrap{ overflow:auto; border-radius: var(--radius); border:1px solid var(--line); }
+    .rankTable td, .rankTable th{ white-space:nowrap; }
+    .rankClickable{ cursor:pointer; }
   </style>
 </head>
 
@@ -173,9 +168,9 @@
     <div class="card">
       <h1>
         サミトモレシート見える君
-        <span class="pill mono" id="chainBadge">CHAIN: -</span>
+        <span class="badge" id="chainBadge">CHAIN: -</span>
       </h1>
-      <div class="sub">CSVヘッダからチェーン（サミット/トモズ）を自動判定し、会員×日時×店舗で取引IDを作って閲覧します。</div>
+      <div class="sub">会員×日時×店舗で擬似レシートを作り、レシート単位で明細を閲覧する検証ツール</div>
 
       <div class="drop" id="drop">
         <b>明細CSVをここにドラッグ&ドロップ</b>（または）
@@ -192,6 +187,69 @@
       <div class="small muted" id="status" style="margin-top:10px">CSV未読込</div>
     </div>
 
+    <!-- 0) 会員探索（ランキング） -->
+    <div class="card">
+      <h2>0) 会員の当たりを付ける（対象商品ベースのランキング）</h2>
+
+      <div class="row4">
+        <div>
+          <label>JANコード（部分一致）</label>
+          <input id="rankJan" class="mono" placeholder="例: 498..." />
+        </div>
+        <div>
+          <label>商品名（部分一致）</label>
+          <input id="rankItem" placeholder="例: ロキソニン" />
+        </div>
+        <div>
+          <label>指標</label>
+          <select id="rankMetric">
+            <option value="sales_desc">対象商品 売上（高い順）</option>
+            <option value="qty_desc">対象商品 点数（多い順）</option>
+            <option value="rcpt_desc">対象商品 レシート枚数（多い順）</option>
+            <option value="last_desc">直近購買日時（新しい順）</option>
+          </select>
+        </div>
+        <div>
+          <label>表示件数</label>
+          <select id="rankLimit">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn primary" id="rankRefresh">ランキング更新</button>
+        <div class="small muted" id="rankInfo" style="align-self:center">CSV読込後に有効</div>
+      </div>
+
+      <div style="margin-top:12px" class="rankWrap">
+        <table class="rankTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>会員ID</th>
+              <th class="right">対象商品売上</th>
+              <th class="right">対象商品点数</th>
+              <th class="right">対象商品レシート枚数</th>
+              <th>直近購買</th>
+              <th class="right">利用店舗数</th>
+            </tr>
+          </thead>
+          <tbody id="rankTable">
+            <tr><td colspan="7" class="muted">CSV未読込</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="small muted" style="margin-top:8px">
+        ※ ここは「一致した明細のみ」で集計（同時購入分は入れない）。深掘りは下のレシートで見る。
+      </div>
+    </div>
+
+    <!-- ① 会員選択 -->
     <div class="card">
       <h2>① 会員を選ぶ & 絞り込み</h2>
 
@@ -251,7 +309,7 @@
         </div>
       </div>
 
-      <div style="margin-top:12px" class="row4">
+      <div style="margin-top:12px" class="row">
         <div>
           <label>レシート一覧ソート</label>
           <select id="rcptSort">
@@ -263,7 +321,8 @@
             <option value="qty_asc">点数（少ない順）</option>
           </select>
         </div>
-        <div></div><div></div><div></div>
+        <div></div>
+        <div></div>
       </div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
@@ -272,6 +331,7 @@
       </div>
     </div>
 
+    <!-- ② 会員サマリー -->
     <div class="card">
       <h2>② 会員サマリー（条件内）</h2>
       <div class="kpi">
@@ -285,6 +345,7 @@
       <div class="small muted" style="margin-top:8px">※ 絞り込み条件をかけた後の範囲で集計</div>
     </div>
 
+    <!-- ③ レシート -->
     <div class="card">
       <h2>③ レシート一覧 → ワンクリックでジャンプ（＋左右キー）</h2>
 
@@ -348,6 +409,7 @@
         </div>
 
       </div>
+
     </div>
 
   </div>

@@ -98,8 +98,8 @@ const PROFILES = {
     qty: "買上点数（会員)",
     maker: "",        // 無ければ空でOK
     catL: "部門名",   // 使いたい粒度に調整OK（例：部門名）
-    catM: "カテゴリ名",
-    catS: "",         // 無ければ空でOK
+    catM: "コーナー名",
+    catS: "ライン名",         // 無ければ空でOK
     jan: "JANコード",
     notice: [
       "サミット形式：列名は半角カッコ（例：買上金額（会員)）が混ざることがあります。",
@@ -704,3 +704,4 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+

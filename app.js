@@ -874,12 +874,6 @@ function renderMemberRanking() {
   });
 }
 
- 
-      // 探索条件 → 下の絞り込みにもコピー
-      const rJan = ($("#rankJan")?.value || "").trim();
-      const rItem = ($("#rankItem")?.value || "").trim();
-      if ($("#janFilter")) $("#janFilter").value = rJan;
-      if ($("#itemFilter")) $("#itemFilter").value = rItem;
 
       refreshFilterOptionsForMember(memberId);
       apply();
@@ -983,6 +977,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

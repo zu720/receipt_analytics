@@ -11,11 +11,7 @@
 const $ = (s) => document.querySelector(s);
 
 // ---------- util ----------
-function setChainBadge() {
-  const el = $("#chainBadge");
-  if (!el) return;
-  el.textContent = `CHAIN: ${COL?.name || "-"}`;
-}
+
 
 function setStatus(msg) { const el = $("#status"); if (el) el.textContent = msg; }
 function fmtInt(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
@@ -53,6 +49,11 @@ function parseNum(v) {
   return Number.isFinite(x) ? x : 0;
 }
 function uniqSorted(arr) { return Array.from(new Set(arr.filter(Boolean))).sort(); }
+function setChainBadge() {
+  const el = $("#chainBadge");
+  if (!el) return;
+  el.textContent = `CHAIN: ${COL?.name || "-"}`;
+}
 
 // ---------- profiles (列名辞書) ----------
 const PROFILES = {
@@ -894,6 +895,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

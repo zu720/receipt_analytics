@@ -835,7 +835,7 @@ function renderMemberRanking() {
   `).join("");
 
   // イベント付与（毎回描画し直すので毎回付ける）
-  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
+    tbody.querySelectorAll("tr[data-member]").forEach(tr => {
     tr.addEventListener("click", async (e) => {
       const memberId = tr.dataset.member || "";
       if (!memberId) return;
@@ -849,7 +849,7 @@ function renderMemberRanking() {
         const ms = $("#memberSearch");
         if (ms) {
           ms.value = memberId;
-          ms.dispatchEvent(new Event("input", { bubbles: true })); // 候補絞り込み即反映
+          ms.dispatchEvent(new Event("input", { bubbles: true }));
           ms.focus();
           ms.select();
         }
@@ -871,7 +871,8 @@ function renderMemberRanking() {
       apply();
       sel?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-
+  });
+}
 
 
 async function loadFile(file) {
@@ -970,4 +971,5 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 

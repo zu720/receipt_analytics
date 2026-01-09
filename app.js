@@ -1,36 +1,22 @@
-// レシート見える君（トモズ/サミット） app.js 完全版
-// - CSVヘッダからチェーン（トモズ/サミット）を自動判定（PROFILES）
+// サミトモレシート見える君（トモズ/サミット） app.js 完全版
+// - CSVヘッダからチェーン自動判定（PROFILES）
 // - 注意書き（#reqCols）をチェーン別に切替
+// - 会員ランキング（対象商品：JAN/商品名）→ クリックで会員選択→ apply()
 // - 会員選択 + 絞り込み（店舗/商品情報）
-// - 商品絞り込みモード：
-//    A) detail_only ＝ 一致した明細だけ表示（軽い）
-//    B) receipt_all ＝ 一致するレシートを抽出し、明細は全表示（同時購入が見える）
+// - 商品絞り込みモード：detail_only / receipt_all
 // - 会員サマリー（条件内）
 // - レシート一覧：クリックでジャンプ、左右キーで切替
-//
-// ※ 列名が違う場合は PROFILES の該当列名だけ直せばOK。
 
 // ---------- DOM helper ----------
 const $ = (s) => document.querySelector(s);
 
 // ---------- util ----------
-function setStatus(msg) {
-  const el = $("#status");
-  if (el) el.textContent = msg;
-}
-function fmtInt(n) {
-  return new Intl.NumberFormat("ja-JP").format(Math.round(n));
-}
-function fmtYen(n) {
-  return new Intl.NumberFormat("ja-JP").format(Math.round(n));
-}
+function setStatus(msg) { const el = $("#status"); if (el) el.textContent = msg; }
+function fmtInt(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
+function fmtYen(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
   }[c]));
 }
 function toDateKey(v) {
@@ -60,9 +46,7 @@ function parseNum(v) {
   const x = Number(s);
   return Number.isFinite(x) ? x : 0;
 }
-function uniqSorted(arr) {
-  return Array.from(new Set(arr.filter(Boolean))).sort();
-}
+function uniqSorted(arr) { return Array.from(new Set(arr.filter(Boolean))).sort(); }
 
 // ---------- profiles (列名辞書) ----------
 const PROFILES = {
@@ -96,10 +80,10 @@ const PROFILES = {
     item: "商品名",
     amount: "買上金額（会員)",
     qty: "買上点数（会員)",
-    maker: "",        // 無ければ空でOK
-    catL: "部門名",   // 使いたい粒度に調整OK（例：部門名）
-    catM: "コーナー名",
-    catS: "ライン名",         // 無ければ空でOK
+    maker: "",
+    catL: "部門名",
+    catM: "カテゴリ名",
+    catS: "",
     jan: "JANコード",
     notice: [
       "サミット形式：列名は半角カッコ（例：買上金額（会員)）が混ざることがあります。",
@@ -116,16 +100,9 @@ let CHAIN_KEY = "TOMODS";
 function pickProfile(headers) {
   const has = (x) => headers.includes(x);
 
-  // サミットの強いシグナル
-  if (has("匿名会員番号") && (has("買上金額（会員)") || has("買上点数（会員)"))) {
-    return PROFILES.SUMMIT;
-  }
-  // トモズの強いシグナル
-  if (has("会員番号/匿名会員番号") && (has("買上金額（会員）") || has("買上点数（会員）"))) {
-    return PROFILES.TOMODS;
-  }
+  if (has("匿名会員番号") && (has("買上金額（会員)") || has("買上点数（会員)"))) return PROFILES.SUMMIT;
+  if (has("会員番号/匿名会員番号") && (has("買上金額（会員）") || has("買上点数（会員）"))) return PROFILES.TOMODS;
 
-  // 曖昧時の倒し方
   if (has("会員番号/匿名会員番号")) return PROFILES.TOMODS;
   if (has("匿名会員番号")) return PROFILES.SUMMIT;
 
@@ -141,7 +118,7 @@ let CUR = 0;
 
 // ---------- required columns note (チェーン別) ----------
 function renderRequiredColumnsNote() {
-  const el = document.getElementById("reqCols");
+  const el = $("#reqCols");
   if (!el) return;
 
   const required = [COL.member, COL.date, COL.time, COL.storeName, COL.item, COL.amount].filter(Boolean);
@@ -158,22 +135,20 @@ function renderRequiredColumnsNote() {
 }
 
 function setChainBadge() {
-  const badge = document.getElementById("chainBadge");
+  const badge = $("#chainBadge");
   if (!badge) return;
   badge.textContent = `CHAIN: ${COL?.name ?? "-"}`;
 }
 
 // ---------- header presence helpers ----------
-function hasCol(name) {
-  return !!name && HEADERS.includes(name);
-}
+function hasCol(name) { return !!name && HEADERS.includes(name); }
 function valOrEmpty(o, colName) {
   if (!colName) return "";
   if (!hasCol(colName)) return "";
   return String(o[colName] ?? "").trim();
 }
 
-// ---------- CSV parser (minimal; comma separated) ----------
+// ---------- CSV parser ----------
 function parseCSV(text) {
   const rows = [];
   let i = 0, field = "", row = [], inQ = false;
@@ -185,9 +160,7 @@ function parseCSV(text) {
       if (c === '"') {
         if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
         inQ = false; i++; continue;
-      } else {
-        field += c; i++; continue;
-      }
+      } else { field += c; i++; continue; }
     } else {
       if (c === '"') { inQ = true; i++; continue; }
       if (c === ",") { row.push(field); field = ""; i++; continue; }
@@ -196,12 +169,11 @@ function parseCSV(text) {
         if (!(row.length === 1 && row[0] === "")) rows.push(row);
         row = []; i++; continue;
       }
-      if (c === "\r") { i++; continue; } // CRは捨てる
+      if (c === "\r") { i++; continue; }
       field += c; i++; continue;
     }
   }
 
-  // 最終行
   if (field.length || row.length) {
     row.push(field);
     if (!(row.length === 1 && row[0] === "")) rows.push(row);
@@ -222,14 +194,12 @@ function loadFromText(text) {
   const grid = parseCSV(text);
   if (grid.length < 2) throw new Error("CSVが空っぽ（ヘッダ1行＋データが必要）");
 
-  // ヘッダ整形（BOM除去も）
   HEADERS = grid[0].map((h, idx) => {
     const s = String(h ?? "").trim();
-    if (idx === 0) return s.replace(/^\uFEFF/, ""); // BOM
+    if (idx === 0) return s.replace(/^\uFEFF/, "");
     return s;
   });
 
-  // チェーン推定 → 列辞書決定
   COL = pickProfile(HEADERS);
   CHAIN_KEY = COL.key;
 
@@ -238,9 +208,7 @@ function loadFromText(text) {
 
   const required = [COL.member, COL.date, COL.time, COL.storeName, COL.item, COL.amount].filter(Boolean);
   const missing = required.filter(c => !HEADERS.includes(c));
-  if (missing.length) {
-    throw new Error(`必須列が足りない: ${missing.join(", ")}（CSVヘッダ or PROFILESを合わせて）`);
-  }
+  if (missing.length) throw new Error(`必須列が足りない: ${missing.join(", ")}（CSVヘッダ or PROFILESを合わせて）`);
 
   RAW = grid.slice(1)
     .filter(r => r.length && r.some(x => String(x).trim() !== ""))
@@ -256,9 +224,7 @@ function loadFromText(text) {
       o.__amt = parseNum(o[COL.amount]);
       o.__qty = hasCol(COL.qty) ? parseNum(o[COL.qty]) : 1;
 
-      if (!o.__time) {
-        throw new Error(`買上時間が解釈できない行があります。列「${COL.time}」の形式を確認してください（例: 13:05 や 130522 など）`);
-      }
+      if (!o.__time) throw new Error(`買上時間が解釈できない行があります。列「${COL.time}」の形式を確認してください（例: 13:05 や 130522 など）`);
 
       o.__maker = valOrEmpty(o, COL.maker);
       o.__catL = valOrEmpty(o, COL.catL);
@@ -276,7 +242,10 @@ function loadFromText(text) {
   MEMBER_LIST = Array.from(set).sort();
 
   refreshMemberSelect();
-  setStatus(`読込OK: ${fmtInt(RAW.length)}行 / 会員数: ${fmtInt(MEMBER_LIST.length)} / CHAIN=${COL.name}（レシートIDは自動生成）`);
+  setStatus(`読込OK: ${fmtInt(RAW.length)}行 / 会員数: ${fmtInt(MEMBER_LIST.length)} / CHAIN=${COL.name}`);
+
+  // CSV読込後：ランキング初期表示
+  renderMemberRanking();
 }
 
 // ---------- UI: member select ----------
@@ -332,7 +301,6 @@ function buildReceiptsForMember(memberId, filters) {
   const janQ = (janLike || "").trim();
   const itemQ = (itemLike || "").trim();
 
-  // まず「商品条件以外」(ベース条件) で絞る
   const baseLines = RAW.filter(r => {
     if (r.__member !== memberId) return false;
     if (dateFilter && r.__date !== dateFilter) return false;
@@ -344,7 +312,6 @@ function buildReceiptsForMember(memberId, filters) {
     return true;
   });
 
-  // 商品条件マッチ判定
   const matchProduct = (r) => {
     if (janQ && !r.__jan.includes(janQ)) return false;
     if (itemQ && !r.__item.includes(itemQ)) return false;
@@ -352,40 +319,26 @@ function buildReceiptsForMember(memberId, filters) {
   };
 
   let lines = baseLines;
-
-  // 商品条件がある時だけスコープ適用
   const hasProductCond = !!(janQ || itemQ);
 
   if (hasProductCond) {
     if (productScope === "receipt_all") {
-      // 1) 商品条件に一致するレシートを抽出
       const receiptSet = new Set(baseLines.filter(matchProduct).map(x => x.__receipt));
-      // 2) そのレシートに属する明細を全表示（同時購買も含む）
       lines = baseLines.filter(r => receiptSet.has(r.__receipt));
     } else {
-      // detail_only（軽い）：一致した明細だけ表示
       lines = baseLines.filter(matchProduct);
     }
   }
 
-  // レシート単位にグルーピング
   const map = new Map();
   for (const r of lines) {
     const key = r.__receipt;
     if (!map.has(key)) {
-      map.set(key, {
-        receiptId: key,
-        date: r.__date,
-        time: r.__time,
-        dtKey: r.__dtKey,
-        store: r.__store,
-        lines: []
-      });
+      map.set(key, { receiptId: key, date: r.__date, time: r.__time, dtKey: r.__dtKey, store: r.__store, lines: [] });
     }
     map.get(key).lines.push(r);
   }
 
-  // レシートのサマリ＆商品集約（商品名単位）
   const receipts = Array.from(map.values()).map(rcpt => {
     const sales = rcpt.lines.reduce((a, x) => a + x.__amt, 0);
     const qty = rcpt.lines.reduce((a, x) => a + x.__qty, 0);
@@ -420,7 +373,6 @@ function sortReceipts(list, mode) {
   }
   return a;
 }
-
 function sortItems(items, mode) {
   const a = [...items];
   switch (mode) {
@@ -542,7 +494,7 @@ function renderCurrentReceipt() {
   }
 }
 
-// ---------- apply / clear ----------
+// ---------- filters ----------
 function getFilters() {
   return {
     dateFilter: $("#dateFilter")?.value || "",
@@ -557,6 +509,7 @@ function getFilters() {
   };
 }
 
+// ---------- apply / clear ----------
 function apply() {
   const memberId = $("#member")?.value || "";
   if (!memberId) { setStatus("会員を選択してください"); return; }
@@ -625,6 +578,155 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// ============================================================
+// 0) 会員探索（ランキング）
+//   - 一致した明細だけで集計（同時購買は入れない）
+// ============================================================
+function getRankQuery() {
+  return {
+    janQ: ($("#rankJan")?.value || "").trim(),
+    itemQ: ($("#rankItem")?.value || "").trim(),
+    metric: $("#rankMetric")?.value || "sales_desc",
+    limit: Number($("#rankLimit")?.value || 100),
+  };
+}
+
+function computeMemberRanking({ janQ, itemQ, metric, limit }) {
+  if (!RAW.length) return [];
+
+  const hasCond = !!(janQ || itemQ);
+
+  const match = (r) => {
+    if (janQ && !r.__jan.includes(janQ)) return false;
+    if (itemQ && !r.__item.includes(itemQ)) return false;
+    return true;
+  };
+
+  // 条件が空なら「全明細」になって会員数が多すぎるので、空はランキング停止（仕様）
+  if (!hasCond) return [];
+
+  const m = new Map();
+  for (const r of RAW) {
+    if (!match(r)) continue;
+
+    const id = r.__member;
+    if (!id) continue;
+
+    if (!m.has(id)) {
+      m.set(id, {
+        member: id,
+        sales: 0,
+        qty: 0,
+        rcptSet: new Set(),
+        storeSet: new Set(),
+        lastDt: "",
+      });
+    }
+    const o = m.get(id);
+    o.sales += r.__amt;
+    o.qty += r.__qty;
+    o.rcptSet.add(r.__receipt);
+    o.storeSet.add(r.__store);
+    if (!o.lastDt || String(r.__dtKey).localeCompare(o.lastDt) > 0) o.lastDt = r.__dtKey;
+  }
+
+  let arr = Array.from(m.values()).map(o => ({
+    member: o.member,
+    sales: o.sales,
+    qty: o.qty,
+    rcpt: o.rcptSet.size,
+    stores: o.storeSet.size,
+    lastDt: o.lastDt || "",
+  }));
+
+  // sort
+  const cmpStrDesc = (a, b) => String(b).localeCompare(String(a));
+  switch (metric) {
+    case "qty_desc":
+      arr.sort((a, b) => (b.qty - a.qty) || (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt));
+      break;
+    case "rcpt_desc":
+      arr.sort((a, b) => (b.rcpt - a.rcpt) || (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt));
+      break;
+    case "last_desc":
+      arr.sort((a, b) => cmpStrDesc(a.lastDt, b.lastDt) || (b.sales - a.sales) || (b.rcpt - a.rcpt));
+      break;
+    case "sales_desc":
+    default:
+      arr.sort((a, b) => (b.sales - a.sales) || cmpStrDesc(a.lastDt, b.lastDt) || (b.rcpt - a.rcpt));
+      break;
+  }
+
+  if (Number.isFinite(limit) && limit > 0) arr = arr.slice(0, limit);
+  return arr;
+}
+
+function renderMemberRanking() {
+  const tbody = $("#rankTable");
+  const info = $("#rankInfo");
+  if (!tbody) return;
+
+  if (!RAW.length) {
+    if (info) info.textContent = "CSV読込後に有効";
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">CSV未読込</td></tr>`;
+    return;
+  }
+
+  const q = getRankQuery();
+  const arr = computeMemberRanking(q);
+
+  if (!q.janQ && !q.itemQ) {
+    if (info) info.textContent = "JAN or 商品名を入れるとランキングが出ます（空だと重すぎるので止めてます）";
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">JAN または 商品名で条件を入れてください</td></tr>`;
+    return;
+  }
+
+  if (!arr.length) {
+    if (info) info.textContent = "一致する会員が見つかりませんでした";
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">該当なし</td></tr>`;
+    return;
+  }
+
+  if (info) info.textContent = `該当会員=${fmtInt(arr.length)}（クリックで会員選択→反映）`;
+
+  tbody.innerHTML = arr.map((r, i) => `
+    <tr class="rankClickable" data-member="${escapeHtml(r.member)}">
+      <td class="mono">${i + 1}</td>
+      <td class="mono">${escapeHtml(r.member)}</td>
+      <td class="right mono">${fmtYen(r.sales)}</td>
+      <td class="right mono">${fmtInt(r.qty)}</td>
+      <td class="right mono">${fmtInt(r.rcpt)}</td>
+      <td class="mono">${escapeHtml(r.lastDt)}</td>
+      <td class="right mono">${fmtInt(r.stores)}</td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
+    tr.addEventListener("click", () => {
+      const memberId = tr.dataset.member || "";
+      if (!memberId) return;
+
+      // 会員をセット
+      const sel = $("#member");
+      if (sel) sel.value = memberId;
+
+      // 探索条件 → 下の絞り込みにもコピー（違和感を減らす）
+      const rJan = ($("#rankJan")?.value || "").trim();
+      const rItem = ($("#rankItem")?.value || "").trim();
+      const janEl = $("#janFilter");
+      const itemEl = $("#itemFilter");
+      if (janEl) janEl.value = rJan;
+      if (itemEl) itemEl.value = rItem;
+
+      refreshFilterOptionsForMember(memberId);
+      apply();
+
+      // 目線誘導（会員選択ブロックまで少しスクロール）
+      sel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
 // ---------- file load ----------
 async function loadFile(file) {
   try {
@@ -646,7 +748,6 @@ async function loadFile(file) {
 
 // ---------- UI wiring ----------
 function wire() {
-  // 初期の注意書き（仮でトモズを出しておく）
   renderRequiredColumnsNote();
   setChainBadge();
 
@@ -674,6 +775,13 @@ function wire() {
   $("#itemSort")?.addEventListener("change", () => { if (RECEIPTS.length) renderCurrentReceipt(); });
   $("#productScope")?.addEventListener("change", () => { if (RECEIPTS.length) apply(); });
 
+  // ranking
+  $("#rankRefresh")?.addEventListener("click", renderMemberRanking);
+  $("#rankMetric")?.addEventListener("change", () => { if (RAW.length) renderMemberRanking(); });
+  $("#rankLimit")?.addEventListener("change", () => { if (RAW.length) renderMemberRanking(); });
+  $("#rankJan")?.addEventListener("input", () => { if (RAW.length) renderMemberRanking(); });
+  $("#rankItem")?.addEventListener("input", () => { if (RAW.length) renderMemberRanking(); });
+
   // drag & drop
   const drop = $("#drop");
   if (drop) {
@@ -692,6 +800,7 @@ function wire() {
   });
 
   // 初期表示
+  renderMemberRanking();
   renderMemberSummary();
   renderReceiptList();
   renderCurrentReceipt();
@@ -704,4 +813,3 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
-

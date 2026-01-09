@@ -82,7 +82,7 @@ const PROFILES = {
     qty: "買上点数（会員)",
     maker: "",
     corner: "コーナー名",
-　  line: "ライン名",
+    line: "ライン名",
     catL: "部門名",
     catM: "カテゴリ名",
     catS: "",
@@ -125,7 +125,7 @@ function renderRequiredColumnsNote() {
 
   const renderOne = (P) => {
     const required = [P.member, P.date, P.time, P.storeName, P.item, P.amount].filter(Boolean);
-    const optional = [P.qty, P.maker, P.catL, P.catM, P.catS, P.jan].filter(Boolean);
+    const optional = [P.qty, P.maker, P.corner, P.line, P.catL, P.catM, P.catS, P.jan].filter(Boolean);
     const chainName = P?.name ? `【${P.name}】` : "";
     const noticeLines = (P.notice || []).map(x => `・${escapeHtml(x)}`).join("<br>");
 
@@ -213,6 +213,14 @@ function loadFromText(text) {
   setChainBadge();
   renderRequiredColumnsNote();
 
+
+  // ★「直後」＝この位置（renderRequiredColumnsNote() の次の行）
+  showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
+  showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
+  showBlockIfExists("#makerFilter",  !!COL.maker  && hasCol(COL.maker)); // 任意
+  showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS));
+
+  
   const required = [COL.member, COL.date, COL.time, COL.storeName, COL.item, COL.amount].filter(Boolean);
   const missing = required.filter(c => !HEADERS.includes(c));
   if (missing.length) throw new Error(`必須列が足りない: ${missing.join(", ")}（CSVヘッダ or PROFILESを合わせて）`);
@@ -294,23 +302,29 @@ function refreshFilterOptionsForMember(memberId) {
   if (!memberId) {
     fillSelect("#storeFilter", []);
     fillSelect("#makerFilter", []);
+    fillSelect("#lineFilter", []);
+    fillSelect("#cornerFilter", []);
     fillSelect("#catLFilter", []);
     fillSelect("#catMFilter", []);
     fillSelect("#catSFilter", []);
     return;
   }
+
   const lines = RAW.filter(r => r.__member === memberId);
-  fillSelect("#storeFilter", uniqSorted(lines.map(x => x.__store)));
-  fillSelect("#makerFilter", uniqSorted(lines.map(x => x.__maker)));
-  fillSelect("#catLFilter", uniqSorted(lines.map(x => x.__catL)));
-  fillSelect("#catMFilter", uniqSorted(lines.map(x => x.__catM)));
-  fillSelect("#catSFilter", uniqSorted(lines.map(x => x.__catS)));
+
+  fillSelect("#storeFilter",  uniqSorted(lines.map(x => x.__store)));
+  fillSelect("#makerFilter",  uniqSorted(lines.map(x => x.__maker)));
+  fillSelect("#lineFilter",   uniqSorted(lines.map(x => x.__line)));
+  fillSelect("#cornerFilter", uniqSorted(lines.map(x => x.__corner)));
+  fillSelect("#catLFilter",   uniqSorted(lines.map(x => x.__catL)));
+  fillSelect("#catMFilter",   uniqSorted(lines.map(x => x.__catM)));
+  fillSelect("#catSFilter",   uniqSorted(lines.map(x => x.__catS)));
 }
 
 // ---------- receipts builder ----------
 function buildReceiptsForMember(memberId, filters) {
   const {
-    dateFilter, store, maker, catL, catM, catS,
+    dateFilter, store, maker,line,corner, catL, catM, catS,
     janLike, itemLike,
     productScope
   } = filters;
@@ -323,6 +337,8 @@ function buildReceiptsForMember(memberId, filters) {
     if (dateFilter && r.__date !== dateFilter) return false;
     if (store && r.__store !== store) return false;
     if (maker && r.__maker !== maker) return false;
+    if (line && r.__line !== line) return false;
+    if (corner && r.__corner !== corner) return false;
     if (catL && r.__catL !== catL) return false;
     if (catM && r.__catM !== catM) return false;
     if (catS && r.__catS !== catS) return false;
@@ -680,10 +696,7 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   return arr;
 }
 
-// ★チェーン別にUIを出し分け
-showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
-showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
-showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS)); // サミットは空なので消える
+
 
 
 function renderMemberRanking() {
@@ -837,6 +850,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

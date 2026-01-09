@@ -848,6 +848,9 @@ async function loadFile(file) {
 
 // ---------- UI wiring ----------
 function wire() {
+ // ★ランキング表示件数のデフォルトを強制（ブラウザ復元対策）
+  const rl = $("#rankLimit");
+  if (rl) rl.value = "10";  
   renderRequiredColumnsNote();
   setChainBadge();
   applyProfileUI();
@@ -921,6 +924,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

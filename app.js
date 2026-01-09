@@ -582,6 +582,14 @@ document.addEventListener("keydown", (e) => {
 // 0) 会員探索（ランキング）
 //   - 一致した明細だけで集計（同時購買は入れない）
 // ============================================================
+function getRankQuery() {
+  return {
+    janQ: ($("#rankJan")?.value || "").trim(),
+    itemQ: ($("#rankItem")?.value || "").trim(),
+    metric: $("#rankMetric")?.value || "sales_desc",
+    limit: Number($("#rankLimit")?.value || 100),
+  };
+}
 function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   if (!RAW.length) return [];
 
@@ -784,6 +792,13 @@ function wire() {
   });
 
   // 初期表示
+  console.log("rank ready", {
+  hasGetRankQuery: typeof getRankQuery,
+  rankJan: $("#rankJan")?.value,
+  rankItem: $("#rankItem")?.value,
+  RAW: RAW.length
+});
+
   renderMemberRanking();
   renderMemberSummary();
   renderReceiptList();
@@ -797,5 +812,6 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 

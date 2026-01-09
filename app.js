@@ -577,10 +577,10 @@ document.addEventListener("keydown", (e) => {
     renderCurrentReceipt(); renderReceiptList();
   }
 });
-
 // ============================================================
 // 0) 会員探索（ランキング）
 //   - 一致した明細だけで集計（同時購買は入れない）
+//   - 条件なしでも「全体ランキング」を出す
 // ============================================================
 function getRankQuery() {
   return {
@@ -590,6 +590,7 @@ function getRankQuery() {
     limit: Number($("#rankLimit")?.value || 100),
   };
 }
+
 function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   if (!RAW.length) return [];
 
@@ -659,7 +660,7 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
 }
 
 function renderMemberRanking() {
-  const tbody = $("#rankTable");   // tbody要素（id=rankTable）
+  const tbody = $("#rankTable");
   const info = $("#rankInfo");
   if (!tbody) return;
 
@@ -705,12 +706,11 @@ function renderMemberRanking() {
       const sel = $("#member");
       if (sel) sel.value = memberId;
 
+      // 探索条件 → 下の絞り込みにもコピー
       const rJan = ($("#rankJan")?.value || "").trim();
       const rItem = ($("#rankItem")?.value || "").trim();
-      const janEl = $("#janFilter");
-      const itemEl = $("#itemFilter");
-      if (janEl) janEl.value = rJan;
-      if (itemEl) itemEl.value = rItem;
+      if ($("#janFilter")) $("#janFilter").value = rJan;
+      if ($("#itemFilter")) $("#itemFilter").value = rItem;
 
       refreshFilterOptionsForMember(memberId);
       apply();
@@ -718,8 +718,6 @@ function renderMemberRanking() {
     });
   });
 }
-
-// ---------- file load ----------
 async function loadFile(file) {
   try {
     setStatus(`読込中... ${file.name}`);
@@ -812,6 +810,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

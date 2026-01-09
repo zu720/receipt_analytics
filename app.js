@@ -12,6 +12,32 @@ const $ = (s) => document.querySelector(s);
 
 // ---------- util ----------
 
+async function copyToClipboardSafe(text) {
+  const s = String(text ?? "");
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(s);
+      return true;
+    }
+  } catch (_) {}
+
+  // fallback（古い/非https環境でも動く）
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = s;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (_) {
+    return false;
+  }
+}
 
 function setStatus(msg) { const el = $("#status"); if (el) el.textContent = msg; }
 function fmtInt(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
@@ -799,7 +825,7 @@ function renderMemberRanking() {
   tbody.innerHTML = arr.map((r, i) => `
     <tr class="rankClickable" data-member="${escapeHtml(r.member)}">
       <td class="mono">${i + 1}</td>
-      <td class="mono">${escapeHtml(r.member)}</td>
+      <td class="mono memberCell" title="クリックでIDコピー">${escapeHtml(r.member)}</td>
       <td class="right mono">${fmtYen(r.sales)}</td>
       <td class="right mono">${fmtInt(r.qty)}</td>
       <td class="right mono">${fmtInt(r.rcpt)}</td>
@@ -807,15 +833,45 @@ function renderMemberRanking() {
       <td class="right mono">${fmtInt(r.stores)}</td>
     </tr>
   `).join("");
+tbody.querySelectorAll("tr[data-member]").forEach(tr => {
+  tr.addEventListener("click", async (e) => {
+    const memberId = tr.dataset.member || "";
+    if (!memberId) return;
 
-  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
-    tr.addEventListener("click", () => {
-      const memberId = tr.dataset.member || "";
-      if (!memberId) return;
+    const clickedMemberCell = e.target?.closest?.(".memberCell");
 
-      const sel = $("#member");
-      if (sel) sel.value = memberId;
+    // ★ 会員IDセルをクリックしたとき：コピー + 検索窓へ貼り付け（applyしない）
+    if (clickedMemberCell) {
+      const ok = await copyToClipboardSafe(memberId);
 
+      const ms = $("#memberSearch");
+      if (ms) {
+        ms.value = memberId;
+        ms.dispatchEvent(new Event("input", { bubbles: true })); // 候補絞り込み即反映
+        ms.focus();
+        ms.select();
+      }
+
+      setStatus(ok ? `会員IDコピー: ${memberId}` : `コピー失敗（手動でOK）: ${memberId}`);
+      return;
+    }
+
+    // ★ 行クリック：従来どおり「選択→反映」
+    const sel = $("#member");
+    if (sel) sel.value = memberId;
+
+    const rJan = ($("#rankJan")?.value || "").trim();
+    const rItem = ($("#rankItem")?.value || "").trim();
+    if ($("#janFilter")) $("#janFilter").value = rJan;
+    if ($("#itemFilter")) $("#itemFilter").value = rItem;
+
+    refreshFilterOptionsForMember(memberId);
+    apply();
+    sel?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+
+ 
       // 探索条件 → 下の絞り込みにもコピー
       const rJan = ($("#rankJan")?.value || "").trim();
       const rItem = ($("#rankItem")?.value || "").trim();
@@ -924,6 +980,7 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
+
 
 
 

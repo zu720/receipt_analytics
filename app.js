@@ -1,4 +1,4 @@
-// サミトモレシート見える君（トモズ/サミット） app.js 完全版
+// app.js 完全版（曜日表示 + ソート完全対応 + safeOn + 日付正規化）
 // - CSVヘッダからチェーン自動判定（PROFILES）
 // - 注意書き（#reqCols）をチェーン別に切替
 // - 会員ランキング（対象商品：JAN/商品名）→ クリックで会員選択→ apply()
@@ -6,12 +6,21 @@
 // - 商品絞り込みモード：detail_only / receipt_all
 // - 会員サマリー（条件内）
 // - レシート一覧：クリックでジャンプ、左右キーで切替
+// - レシート一覧ソート：左(#rcptSort) + 右(#rcptSort2) どちらからでも（再集計しない）
+// - 日付：YYYY-MM-DD に正規化（ゼロ埋め）
+// - 曜日表示：一覧＆ヘッダ
 
 // ---------- DOM helper ----------
 const $ = (s) => document.querySelector(s);
 
-// ---------- util ----------
+// 要素がなくても落ちないイベント付与
+function safeOn(selector, eventName, handler) {
+  const el = $(selector);
+  if (!el) return;
+  el.addEventListener(eventName, handler);
+}
 
+// ---------- util ----------
 async function copyToClipboardSafe(text) {
   const s = String(text ?? "");
   try {
@@ -42,16 +51,51 @@ async function copyToClipboardSafe(text) {
 function setStatus(msg) { const el = $("#status"); if (el) el.textContent = msg; }
 function fmtInt(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
 function fmtYen(n) { return new Intl.NumberFormat("ja-JP").format(Math.round(n)); }
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
   }[c]));
 }
+
+// YYYY-MM-DD の曜日（日本語）を返す： "(月)" みたいなやつ
+function weekdayJa(dateKey) {
+  if (!dateKey) return "";
+  const m = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const dt = new Date(y, mo - 1, d); // ローカルでOK（曜日だけ）
+  const w = dt.getDay(); // 0..6
+  const ja = ["日","月","火","水","木","金","土"][w] ?? "";
+  return ja ? `(${ja})` : "";
+}
+
 function toDateKey(v) {
   if (!v) return "";
-  const s = String(v).trim().replaceAll("/", "-");
-  return s.length >= 10 ? s.slice(0, 10) : s;
+  const s0 = String(v).trim();
+
+  // 20240109 / 2024-1-9 / 2024/1/9 などを全部吸収して YYYY-MM-DD にする
+  const digits = s0.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    const y = digits.slice(0, 4);
+    const m = digits.slice(4, 6);
+    const d = digits.slice(6, 8);
+    return `${y}-${m}-${d}`;
+  }
+
+  // 2024-1-9 系
+  const s = s0.replaceAll("/", "-");
+  const parts = s.split("-").map(x => x.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    const y = parts[0].padStart(4, "0").slice(0, 4);
+    const m = parts[1].padStart(2, "0").slice(0, 2);
+    const d = parts[2].padStart(2, "0").slice(0, 2);
+    return `${y}-${m}-${d}`;
+  }
+
+  return s0; // 最後の保険（ここに来るなら元データが変）
 }
+
 function normalizeTime(v) {
   if (!v) return "";
   const s0 = String(v).trim();
@@ -68,18 +112,22 @@ function normalizeTime(v) {
   if (s.length === 2) return `${s.slice(0, 2)}:00:00`;
   return "";
 }
+
 function parseNum(v) {
   if (v === null || v === undefined) return 0;
   const s = String(v).replaceAll(",", "").trim();
   const x = Number(s);
   return Number.isFinite(x) ? x : 0;
 }
+
 function uniqSorted(arr) { return Array.from(new Set(arr.filter(Boolean))).sort(); }
+
 function setChainBadge() {
   const el = $("#chainBadge");
   if (!el) return;
   el.textContent = `CHAIN: ${COL?.name || "-"}`;
 }
+
 function setLabelText(controlSelector, text) {
   const el = $(controlSelector);
   if (!el) return;
@@ -95,32 +143,29 @@ function applyProfileUILabels() {
   // 分類系：表示名をチェーンに合わせる
   setLabelText("#catLFilter", COL.key === "SUMMIT" ? "部門" : "大分類");
   setLabelText("#catMFilter", COL.key === "SUMMIT" ? "カテゴリ" : "中分類");
-  setLabelText("#catSFilter", COL.key === "SUMMIT" ? "（なし）" : "小分類"); // どうせSUMMITは非表示
+  setLabelText("#catSFilter", COL.key === "SUMMIT" ? "（なし）" : "小分類");
 
   // サミット特有
   setLabelText("#lineFilter", "ライン");
   setLabelText("#cornerFilter", "コーナー");
 
-  // トモズ特有（必要なら）
+  // トモズ特有
   if (COL.key === "TOMODS") setLabelText("#makerFilter", "メーカー/取引先");
 }
+
 function applyProfileUI() {
-  // 既存の表示/非表示制御...
   showBlockIfExists("#makerFilter",  !!COL.maker  && hasCol(COL.maker));
   showBlockIfExists("#lineFilter",   !!COL.line   && hasCol(COL.line));
   showBlockIfExists("#cornerFilter", !!COL.corner && hasCol(COL.corner));
   showBlockIfExists("#catSFilter",   !!COL.catS   && hasCol(COL.catS));
 
-  // 既存の値クリア...
   if (!(!!COL.maker  && hasCol(COL.maker)))  $("#makerFilter") && ($("#makerFilter").value = "");
   if (!(!!COL.line   && hasCol(COL.line)))   $("#lineFilter") && ($("#lineFilter").value = "");
   if (!(!!COL.corner && hasCol(COL.corner))) $("#cornerFilter") && ($("#cornerFilter").value = "");
   if (!(!!COL.catS   && hasCol(COL.catS)))   $("#catSFilter") && ($("#catSFilter").value = "");
 
-  // ★追加：ラベルの文言もチェーンで切替
   applyProfileUILabels();
 }
-
 
 // ---------- profiles (列名辞書) ----------
 const PROFILES = {
@@ -214,7 +259,6 @@ function renderRequiredColumnsNote() {
     `;
   };
 
-  // ★両方表示 + いま判定されたチェーンを先頭に
   const first = COL?.key === "SUMMIT" ? PROFILES.SUMMIT : PROFILES.TOMODS;
   const second = COL?.key === "SUMMIT" ? PROFILES.TOMODS : PROFILES.SUMMIT;
 
@@ -286,13 +330,8 @@ function loadFromText(text) {
 
   setChainBadge();
   renderRequiredColumnsNote();
-
-
-
   applyProfileUI();
 
-
-  
   const required = [COL.member, COL.date, COL.time, COL.storeName, COL.item, COL.amount].filter(Boolean);
   const missing = required.filter(c => !HEADERS.includes(c));
   if (missing.length) throw new Error(`必須列が足りない: ${missing.join(", ")}（CSVヘッダ or PROFILESを合わせて）`);
@@ -312,10 +351,11 @@ function loadFromText(text) {
       o.__qty = hasCol(COL.qty) ? parseNum(o[COL.qty]) : 1;
 
       if (!o.__time) throw new Error(`買上時間が解釈できない行があります。列「${COL.time}」の形式を確認してください（例: 13:05 や 130522 など）`);
+      if (!o.__date) throw new Error(`買上日が解釈できない行があります。列「${COL.date}」の形式を確認してください`);
 
       o.__maker = valOrEmpty(o, COL.maker);
       o.__corner = valOrEmpty(o, COL.corner);
-      o.__line   = valOrEmpty(o, COL.line); 
+      o.__line   = valOrEmpty(o, COL.line);
       o.__catL = valOrEmpty(o, COL.catL);
       o.__catM = valOrEmpty(o, COL.catM);
       o.__catS = valOrEmpty(o, COL.catS);
@@ -333,7 +373,6 @@ function loadFromText(text) {
   refreshMemberSelect();
   setStatus(`読込OK: ${fmtInt(RAW.length)}行 / 会員数: ${fmtInt(MEMBER_LIST.length)} / CHAIN=${COL.name}`);
 
-  // CSV読込後：ランキング初期表示
   renderMemberRanking();
 }
 
@@ -359,7 +398,6 @@ function showBlockIfExists(selectId, show) {
   if (wrap) wrap.style.display = show ? "" : "none";
 }
 
-
 function fillSelect(id, values) {
   const sel = $(id);
   if (!sel) return;
@@ -379,7 +417,7 @@ function refreshFilterOptionsForMember(memberId) {
     fillSelect("#catLFilter", []);
     fillSelect("#catMFilter", []);
     fillSelect("#catSFilter", []);
-    applyProfileUI(); // ここでも整合
+    applyProfileUI();
     return;
   }
 
@@ -387,32 +425,20 @@ function refreshFilterOptionsForMember(memberId) {
 
   fillSelect("#storeFilter", uniqSorted(lines.map(x => x.__store)));
 
-  if (COL.maker && hasCol(COL.maker)) {
-    fillSelect("#makerFilter", uniqSorted(lines.map(x => x.__maker)));
-  } else {
-    fillSelect("#makerFilter", []);
-  }
+  if (COL.maker && hasCol(COL.maker)) fillSelect("#makerFilter", uniqSorted(lines.map(x => x.__maker)));
+  else fillSelect("#makerFilter", []);
 
-  if (COL.line && hasCol(COL.line)) {
-    fillSelect("#lineFilter", uniqSorted(lines.map(x => x.__line)));
-  } else {
-    fillSelect("#lineFilter", []);
-  }
+  if (COL.line && hasCol(COL.line)) fillSelect("#lineFilter", uniqSorted(lines.map(x => x.__line)));
+  else fillSelect("#lineFilter", []);
 
-  if (COL.corner && hasCol(COL.corner)) {
-    fillSelect("#cornerFilter", uniqSorted(lines.map(x => x.__corner)));
-  } else {
-    fillSelect("#cornerFilter", []);
-  }
+  if (COL.corner && hasCol(COL.corner)) fillSelect("#cornerFilter", uniqSorted(lines.map(x => x.__corner)));
+  else fillSelect("#cornerFilter", []);
 
   fillSelect("#catLFilter", uniqSorted(lines.map(x => x.__catL)));
   fillSelect("#catMFilter", uniqSorted(lines.map(x => x.__catM)));
 
-  if (COL.catS && hasCol(COL.catS)) {
-    fillSelect("#catSFilter", uniqSorted(lines.map(x => x.__catS)));
-  } else {
-    fillSelect("#catSFilter", []);
-  }
+  if (COL.catS && hasCol(COL.catS)) fillSelect("#catSFilter", uniqSorted(lines.map(x => x.__catS)));
+  else fillSelect("#catSFilter", []);
 
   applyProfileUI();
 }
@@ -420,7 +446,7 @@ function refreshFilterOptionsForMember(memberId) {
 // ---------- receipts builder ----------
 function buildReceiptsForMember(memberId, filters) {
   const {
-    dateFilter, store, maker,line,corner, catL, catM, catS,
+    dateFilter, store, maker, line, corner, catL, catM, catS,
     janLike, itemLike,
     productScope
   } = filters;
@@ -463,7 +489,14 @@ function buildReceiptsForMember(memberId, filters) {
   for (const r of lines) {
     const key = r.__receipt;
     if (!map.has(key)) {
-      map.set(key, { receiptId: key, date: r.__date, time: r.__time, dtKey: r.__dtKey, store: r.__store, lines: [] });
+      map.set(key, {
+        receiptId: key,
+        date: r.__date,
+        time: r.__time,
+        dtKey: r.__dtKey,
+        store: r.__store,
+        lines: []
+      });
     }
     map.get(key).lines.push(r);
   }
@@ -502,6 +535,25 @@ function sortReceipts(list, mode) {
   }
   return a;
 }
+
+// 並び替えだけ（再集計しない）
+function resortReceipts(mode) {
+  if (!RECEIPTS.length) return;
+
+  const curId = RECEIPTS[CUR]?.receiptId;
+  RECEIPTS = sortReceipts(RECEIPTS, mode);
+
+  if (curId) {
+    const newIdx = RECEIPTS.findIndex(r => r.receiptId === curId);
+    CUR = newIdx >= 0 ? newIdx : 0;
+  } else {
+    CUR = 0;
+  }
+
+  renderReceiptList();
+  renderCurrentReceipt();
+}
+
 function sortItems(items, mode) {
   const a = [...items];
   switch (mode) {
@@ -551,10 +603,11 @@ function renderReceiptList() {
 
   box.innerHTML = RECEIPTS.map((r, idx) => {
     const active = idx === CUR ? "active" : "";
+    const wd = weekdayJa(r.date);
     return `
       <button class="rcptBtn ${active}" data-idx="${idx}">
         <div class="rcptTop">
-          <span class="mono">${escapeHtml(r.date)} ${escapeHtml(r.time)}</span>
+          <span class="mono">${escapeHtml(r.date)} ${escapeHtml(wd)} ${escapeHtml(r.time)}</span>
           <span class="mono">¥${fmtYen(r.sales)}</span>
         </div>
         <div class="rcptMid mono">${escapeHtml(r.store)}</div>
@@ -592,9 +645,10 @@ function renderCurrentReceipt() {
 
   CUR = Math.max(0, Math.min(CUR, RECEIPTS.length - 1));
   const r = RECEIPTS[CUR];
+  const wd = weekdayJa(r.date);
 
   setText("#rcptIndex", `${CUR + 1} / ${RECEIPTS.length}`);
-  setText("#rcptMeta", `${r.date} ${r.time}  |  ${r.store}`);
+  setText("#rcptMeta", `${r.date} ${wd} ${r.time}  |  ${r.store}`);
 
   setText("#r_sales", fmtYen(r.sales));
   setText("#r_qty", fmtInt(r.qty));
@@ -629,8 +683,8 @@ function getFilters() {
     dateFilter: $("#dateFilter")?.value || "",
     store: $("#storeFilter")?.value || "",
     maker: $("#makerFilter")?.value || "",
-    line: $("#lineFilter")?.value || "",       // ★追加
-    corner: $("#cornerFilter")?.value || "",   // ★追加
+    line: $("#lineFilter")?.value || "",
+    corner: $("#cornerFilter")?.value || "",
     catL: $("#catLFilter")?.value || "",
     catM: $("#catMFilter")?.value || "",
     catS: $("#catSFilter")?.value || "",
@@ -646,11 +700,16 @@ function apply() {
   if (!memberId) { setStatus("会員を選択してください"); return; }
 
   const filters = getFilters();
+
+  const mode = $("#rcptSort")?.value || "dt_desc";
   let receipts = buildReceiptsForMember(memberId, filters);
-  receipts = sortReceipts(receipts, $("#rcptSort")?.value || "dt_desc");
+  receipts = sortReceipts(receipts, mode);
 
   RECEIPTS = receipts;
   CUR = 0;
+
+  // 左右ソートUIを同期（apply時）
+  if ($("#rcptSort2")) $("#rcptSort2").value = mode;
 
   renderMemberSummary();
   renderReceiptList();
@@ -676,6 +735,8 @@ function clearAll() {
   setVal("#memberSearch", "");
   setVal("#productScope", "detail_only");
   setVal("#rcptSort", "dt_desc");
+  setVal("#rcptSort2", "dt_desc");
+  setVal("#itemSort", "amt_desc");
 
   RECEIPTS = [];
   CUR = 0;
@@ -696,6 +757,7 @@ function isTypingTarget(el) {
   if (el.isContentEditable) return true;
   return false;
 }
+
 document.addEventListener("keydown", (e) => {
   if (!RECEIPTS.length) return;
   if (isTypingTarget(document.activeElement)) return;
@@ -710,10 +772,9 @@ document.addEventListener("keydown", (e) => {
     renderCurrentReceipt(); renderReceiptList();
   }
 });
+
 // ============================================================
 // 0) 会員探索（ランキング）
-//   - 一致した明細だけで集計（同時購買は入れない）
-//   - 条件なしでも「全体ランキング」を出す
 // ============================================================
 function getRankQuery() {
   return {
@@ -730,7 +791,6 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   const hasCond = !!(janQ || itemQ);
 
   const match = (r) => {
-    // 条件がないときは全件対象（＝全体ランキング）
     if (!hasCond) return true;
     if (janQ && !r.__jan.includes(janQ)) return false;
     if (itemQ && !r.__item.includes(itemQ)) return false;
@@ -792,9 +852,6 @@ function computeMemberRanking({ janQ, itemQ, metric, limit }) {
   return arr;
 }
 
-
-
-
 function renderMemberRanking() {
   const tbody = $("#rankTable");
   const info = $("#rankInfo");
@@ -834,8 +891,7 @@ function renderMemberRanking() {
     </tr>
   `).join("");
 
-  // イベント付与（毎回描画し直すので毎回付ける）
-    tbody.querySelectorAll("tr[data-member]").forEach(tr => {
+  tbody.querySelectorAll("tr[data-member]").forEach(tr => {
     tr.addEventListener("click", async (e) => {
       const memberId = tr.dataset.member || "";
       if (!memberId) return;
@@ -858,7 +914,7 @@ function renderMemberRanking() {
         return;
       }
 
-      // ② 行クリック：従来どおり「選択→反映」
+      // ② 行クリック：選択→反映
       const sel = $("#member");
       if (sel) sel.value = memberId;
 
@@ -873,7 +929,6 @@ function renderMemberRanking() {
     });
   });
 }
-
 
 async function loadFile(file) {
   try {
@@ -895,43 +950,62 @@ async function loadFile(file) {
 
 // ---------- UI wiring ----------
 function wire() {
- // ★ランキング表示件数のデフォルトを強制（ブラウザ復元対策）
+  // ブラウザ復元対策
   const rl = $("#rankLimit");
-  if (rl) rl.value = "10";  
+  if (rl) rl.value = "10";
+
   renderRequiredColumnsNote();
   setChainBadge();
   applyProfileUI();
 
-  $("#apply")?.addEventListener("click", apply);
-  $("#clear")?.addEventListener("click", clearAll);
+  safeOn("#apply", "click", apply);
+  safeOn("#clear", "click", clearAll);
 
-  $("#prev")?.addEventListener("click", () => {
+  safeOn("#prev", "click", () => {
     if (!RECEIPTS.length) return;
     CUR = Math.max(0, CUR - 1);
     renderCurrentReceipt(); renderReceiptList();
   });
-  $("#next")?.addEventListener("click", () => {
+
+  safeOn("#next", "click", () => {
     if (!RECEIPTS.length) return;
     CUR = Math.min(RECEIPTS.length - 1, CUR + 1);
     renderCurrentReceipt(); renderReceiptList();
   });
 
-  $("#memberSearch")?.addEventListener("input", refreshMemberSelect);
-  $("#member")?.addEventListener("change", () => {
+  safeOn("#memberSearch", "input", refreshMemberSelect);
+
+  safeOn("#member", "change", () => {
     const memberId = $("#member")?.value || "";
     refreshFilterOptionsForMember(memberId);
   });
 
-  $("#rcptSort")?.addEventListener("change", () => { if (RECEIPTS.length) apply(); });
-  $("#itemSort")?.addEventListener("change", () => { if (RECEIPTS.length) renderCurrentReceipt(); });
-  $("#productScope")?.addEventListener("change", () => { if (RECEIPTS.length) apply(); });
+  // ★重要：レシートソートは apply() しない（再集計しない）
+  safeOn("#rcptSort", "change", () => {
+    if (!RECEIPTS.length) return;
+    const mode = $("#rcptSort")?.value || "dt_desc";
+    if ($("#rcptSort2")) $("#rcptSort2").value = mode;
+    resortReceipts(mode);
+  });
+
+  safeOn("#rcptSort2", "change", () => {
+    if (!RECEIPTS.length) return;
+    const mode = $("#rcptSort2")?.value || "dt_desc";
+    if ($("#rcptSort")) $("#rcptSort").value = mode;
+    resortReceipts(mode);
+  });
+
+  safeOn("#itemSort", "change", () => { if (RECEIPTS.length) renderCurrentReceipt(); });
+
+  // productScope はレシート構成が変わるので apply()
+  safeOn("#productScope", "change", () => { if (RECEIPTS.length) apply(); });
 
   // ranking
-  $("#rankRefresh")?.addEventListener("click", renderMemberRanking);
-  $("#rankMetric")?.addEventListener("change", () => { if (RAW.length) renderMemberRanking(); });
-  $("#rankLimit")?.addEventListener("change", () => { if (RAW.length) renderMemberRanking(); });
-  $("#rankJan")?.addEventListener("input", () => { if (RAW.length) renderMemberRanking(); });
-  $("#rankItem")?.addEventListener("input", () => { if (RAW.length) renderMemberRanking(); });
+  safeOn("#rankRefresh", "click", renderMemberRanking);
+  safeOn("#rankMetric", "change", () => { if (RAW.length) renderMemberRanking(); });
+  safeOn("#rankLimit", "change", () => { if (RAW.length) renderMemberRanking(); });
+  safeOn("#rankJan", "input", () => { if (RAW.length) renderMemberRanking(); });
+  safeOn("#rankItem", "input", () => { if (RAW.length) renderMemberRanking(); });
 
   // drag & drop
   const drop = $("#drop");
@@ -945,19 +1019,12 @@ function wire() {
     });
   }
 
-  $("#file")?.addEventListener("change", async (e) => {
+  safeOn("#file", "change", async (e) => {
     const file = e.target.files?.[0];
     if (file) await loadFile(file);
   });
 
   // 初期表示
-  console.log("rank ready", {
-  hasGetRankQuery: typeof getRankQuery,
-  rankJan: $("#rankJan")?.value,
-  rankItem: $("#rankItem")?.value,
-  RAW: RAW.length
-});
-
   renderMemberRanking();
   renderMemberSummary();
   renderReceiptList();
@@ -971,5 +1038,3 @@ if (document.readyState === "loading") {
 } else {
   wire();
 }
-
-

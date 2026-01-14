@@ -1,3 +1,4 @@
+<!-- index.html 20260114ver -->
 <!doctype html>
 <html lang="ja">
 <head>
@@ -212,10 +213,10 @@
         <div>
           <label>表示件数</label>
           <select id="rankLimit">
-             <option value="10" selected>10</option>
+            <option value="10" selected>10</option>
             <option value="20">20</option>
             <option value="50">50</option>
-            <option value="100" >100</option>
+            <option value="100">100</option>
             <option value="200">200</option>
             <option value="500">500</option>
           </select>
@@ -269,71 +270,69 @@
           <input id="dateFilter" type="date" />
         </div>
       </div>
-<div style="margin-top:12px" class="row4">
-  <div>
-    <label>店舗</label>
-    <select id="storeFilter"><option value="">（全て）</option></select>
-  </div>
 
-  <div>
-    <label>ライン</label>
-    <select id="lineFilter"><option value="">（全て）</option></select>
-  </div>
+      <div style="margin-top:12px" class="row4">
+        <div>
+          <label>店舗</label>
+          <select id="storeFilter"><option value="">（全て）</option></select>
+        </div>
+        <div>
+          <label>ライン</label>
+          <select id="lineFilter"><option value="">（全て）</option></select>
+        </div>
+        <div>
+          <label>コーナー</label>
+          <select id="cornerFilter"><option value="">（全て）</option></select>
+        </div>
+        <div>
+          <label>大分類</label>
+          <select id="catLFilter"><option value="">（全て）</option></select>
+        </div>
+      </div>
 
-  <div>
-    <label>コーナー</label>
-    <select id="cornerFilter"><option value="">（全て）</option></select>
-  </div>
+      <div style="margin-top:12px" class="row4">
+        <div>
+          <label>中分類</label>
+          <select id="catMFilter"><option value="">（全て）</option></select>
+        </div>
+        <div>
+          <label>小分類</label>
+          <select id="catSFilter"><option value="">（全て）</option></select>
+        </div>
+        <div>
+          <label>JANコード</label>
+          <input id="janFilter" class="mono" placeholder="部分一致OK" />
+        </div>
+        <div>
+          <label>商品名</label>
+          <input id="itemFilter" placeholder="部分一致OK" />
+        </div>
+      </div>
 
-  <div>
-    <label>大分類</label>
-    <select id="catLFilter"><option value="">（全て）</option></select>
-  </div>
-</div>
+      <div style="margin-top:12px" class="row">
+        <div>
+          <label>レシート一覧ソート</label>
+          <select id="rcptSort">
+            <option value="dt_desc">日時（新しい順）</option>
+            <option value="dt_asc">日時（古い順）</option>
+            <option value="sales_desc">売上（高い順）</option>
+            <option value="sales_asc">売上（低い順）</option>
+            <option value="qty_desc">点数（多い順）</option>
+            <option value="qty_asc">点数（少ない順）</option>
+          </select>
+        </div>
 
-    <div style="margin-top:12px" class="row4">
-  <div>
-    <label>中分類</label>
-    <select id="catMFilter"><option value="">（全て）</option></select>
-  </div>
-  <div>
-    <label>小分類</label>
-    <select id="catSFilter"><option value="">（全て）</option></select>
-  </div>
-  <div>
-    <label>JANコード</label>
-    <input id="janFilter" class="mono" placeholder="部分一致OK" />
-  </div>
-  <div>
-    <label>商品名</label>
-    <input id="itemFilter" placeholder="部分一致OK" />
-  </div>
-</div>
-<div style="margin-top:12px" class="row">
-  <div>
-    <label>レシート一覧ソート</label>
-    <select id="rcptSort">
-      <option value="dt_desc">日時（新しい順）</option>
-      <option value="dt_asc">日時（古い順）</option>
-      <option value="sales_desc">売上（高い順）</option>
-      <option value="sales_asc">売上（低い順）</option>
-      <option value="qty_desc">点数（多い順）</option>
-      <option value="qty_asc">点数（少ない順）</option>
-    </select>
-  </div>
+        <div>
+          <label>商品絞り込みの表示モード</label>
+          <select id="productScope">
+            <option value="detail_only">一致した明細だけ表示（軽い）</option>
+            <option value="receipt_all">一致レシートを抽出し、明細は全表示（同時購入が見える）</option>
+          </select>
+        </div>
 
-  <div>
-    <label>商品絞り込みの表示モード</label>
-    <select id="productScope">
-      <option value="detail_only">一致した明細だけ表示（軽い）</option>
-      <option value="receipt_all">一致レシートを抽出し、明細は全表示（同時購入が見える）</option>
-    </select>
-  </div>
+        <div></div>
+      </div>
 
-  <div></div>
-</div>
-
-   
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
         <button class="btn primary" id="apply">反映</button>
         <button class="btn" id="clear">クリア</button>
@@ -377,6 +376,16 @@
               <span class="muted mono" id="rcptIndex">-</span>
 
               <span style="flex:1"></span>
+
+              <label class="muted small" style="margin:0">レシートソート</label>
+              <select id="rcptSort2" style="width:220px">
+                <option value="dt_desc">日時（新しい順）</option>
+                <option value="dt_asc">日時（古い順）</option>
+                <option value="sales_desc">売上（高い順）</option>
+                <option value="sales_asc">売上（低い順）</option>
+                <option value="qty_desc">点数（多い順）</option>
+                <option value="qty_asc">点数（少ない順）</option>
+              </select>
 
               <label class="muted small" style="margin:0">明細ソート</label>
               <select id="itemSort" style="width:220px">
@@ -426,7 +435,3 @@
   <script src="./app.js"></script>
 </body>
 </html>
-
-
-
-
